@@ -18,14 +18,9 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.GenericOptionsParser;
 
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 /**
  *
- * @author User
+ * @author I3OR2A
  */
 public class ProblemOne {
 
@@ -34,12 +29,19 @@ public class ProblemOne {
         private Text word = new Text();
         private Text info = new Text();
 
+        @Override
         public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
             StringTokenizer itr = new StringTokenizer(value.toString());
             Map map = XMLParserUtils.transformXmlToMap(value.toString());
-            word.set((String) map.get("UserId"));
-            info.set((String) map.get("CreationDate"));
-            context.write(word, info);
+
+            String userId = (String) map.get("UserId");
+            String creationDate = (String) map.get("CreationDate");
+
+            if (userId != null && creationDate != null) {
+                word.set(userId);
+                info.set(creationDate + " " + creationDate + " " + 1);
+                context.write(word, info);
+            }
         }
     }
 
@@ -47,6 +49,7 @@ public class ProblemOne {
 
         private Text result = new Text();
 
+        @Override
         public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
             boolean isFirst = true;
             int sum = 0;
@@ -54,26 +57,30 @@ public class ProblemOne {
             String lastDateString = "";
             for (Text val : values) {
                 try {
-                    sum += 1;
+                    String[] dates = val.toString().split(" ");
+                    sum += Integer.parseInt(dates[2]);
+
                     if (isFirst) {
-                        firstDateString = val.toString();
-                        lastDateString = val.toString();
+                        firstDateString = dates[0];
+                        lastDateString = dates[1];
                         isFirst = false;
                         continue;
                     }
-                    
-                    String curDateString = val.toString();
+
+                    String curDateString_first = dates[0];
+                    String curDateString_last = dates[1];
                     SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
-                    Date curDate = sdf.parse(curDateString);
-                    
+                    Date curDate_first = sdf.parse(curDateString_first);
+                    Date curDate_last = sdf.parse(curDateString_last);
+
                     Date firstDate = sdf.parse(firstDateString);
                     Date lastDate = sdf.parse(lastDateString);
-                    if (curDate.after(lastDate)) {
-                        lastDateString = new String(curDateString);
+                    if (curDate_last.after(lastDate)) {
+                        lastDateString = curDateString_last;
                     }
-                    
-                    if (curDate.before(firstDate)) {
-                        firstDateString = new String(curDateString);
+
+                    if (curDate_first.before(firstDate)) {
+                        firstDateString = curDateString_first;
                     }
                 } catch (ParseException ex) {
                     Logger.getLogger(ProblemOne.class.getName()).log(Level.SEVERE, null, ex);

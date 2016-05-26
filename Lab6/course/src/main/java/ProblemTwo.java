@@ -19,14 +19,9 @@ import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.GenericOptionsParser;
 
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 /**
  *
- * @author User
+ * @author I3OR2A
  */
 public class ProblemTwo {
 
@@ -39,22 +34,36 @@ public class ProblemTwo {
             try {
                 StringTokenizer itr = new StringTokenizer(value.toString());
                 Map map = XMLParserUtils.transformXmlToMap(value.toString());
-                
+
                 String curDateString = ((String) map.get("CreationDate"));
-                SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
-                Date curDate = sdf.parse(curDateString);
-                
-                Calendar calendar = Calendar.getInstance();
-                calendar.setTime(curDate);
-                int hours = calendar.get(Calendar.HOUR_OF_DAY);
-                
-                word.set(String.valueOf(hours));
-                info.set((String) map.get("Text"));
-                
-                context.write(word, info);
+                String text = (String) map.get("Text");
+
+                if (curDateString != null && text != null) {
+                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS");
+                    Date curDate = sdf.parse(curDateString);
+
+                    Calendar calendar = Calendar.getInstance();
+                    calendar.setTime(curDate);
+                    int hours = calendar.get(Calendar.HOUR_OF_DAY);
+
+                    word.set(String.valueOf(hours));
+                    info.set(text.length() + " " + 1);
+
+                    context.write(word, info);
+                }
             } catch (ParseException ex) {
                 Logger.getLogger(ProblemTwo.class.getName()).log(Level.SEVERE, null, ex);
             }
+        }
+    }
+
+    public static class ResultMapper extends Mapper<Object, Text, Text, Text> {
+
+        public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+            String[] splits = value.toString().split("\\s+");
+            double total = Double.parseDouble(splits[1]);
+            double count = Double.parseDouble(splits[2]);
+            context.write(new Text(splits[0]), new Text(String.valueOf(total / count)));
         }
     }
 
@@ -63,15 +72,16 @@ public class ProblemTwo {
         private Text result = new Text();
 
         public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-            int count = 0;
-            int total = 0;
-            
+            double count = 0;
+            double total = 0;
+
             for (Text value : values) {
-                count += 1;
-                total += Integer.parseInt(value.toString());
+                String[] splits = value.toString().split("\\s+");
+                count += Double.parseDouble(splits[1]);
+                total += Double.parseDouble(splits[0]);
             }
-            
-            result.set(String.valueOf(total / count));
+
+            result.set(total + " " + count);
             context.write(key, result);
         }
     }
@@ -96,8 +106,28 @@ public class ProblemTwo {
         job.setOutputValueClass(Text.class);
 
         job.setNumReduceTasks(1);
+
         FileInputFormat.addInputPath(job, new Path(otherArgs[0]));
-        FileOutputFormat.setOutputPath(job, new Path(otherArgs[1]));
-        System.exit(job.waitForCompletion(true) ? 0 : 1);
+        FileOutputFormat.setOutputPath(job, new Path("/mapreduce/output/totalCommentLength"));
+
+        job.waitForCompletion(true);
+
+        Job job_final = Job.getInstance(conf, "problem final");
+
+        job_final.setJarByClass(ProblemTwo.class);
+        job_final.setMapperClass(ProblemTwo.ResultMapper.class);
+
+        job_final.setMapOutputKeyClass(Text.class);
+        job_final.setMapOutputValueClass(Text.class);
+
+        job_final.setOutputKeyClass(Text.class);
+        job_final.setOutputValueClass(Text.class);
+
+        job_final.setNumReduceTasks(0);
+
+        FileInputFormat.addInputPath(job_final, new Path("/mapreduce/output/totalCommentLength"));
+        FileOutputFormat.setOutputPath(job_final, new Path(otherArgs[1]));
+
+        System.exit(job_final.waitForCompletion(true) ? 0 : 1);
     }
 }
